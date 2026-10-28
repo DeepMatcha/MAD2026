@@ -8,10 +8,10 @@
 
 ## Collaboration
 
-- GitHub Issue를 기준으로 업무를 분배한다. Issue 또는 PR에 Module Owner, 구현 담당자, Reviewer와 완료 조건을 명시한다.
+- GitHub Issue를 기준으로 업무를 분배한다. Issue 또는 PR에 Module Owner, 구현 담당자와 완료 조건을 명시한다.
 - Branch 이름은 `type/issue-number-description` 형식을 사용한다. 예: `feat/12-login-screen`, `fix/34-token-expiry`. 이번 정책 설정용 `repository-rules` Branch는 일회성 예외다.
 - Feature Branch는 짧게 유지하고 하나의 Issue 또는 명확한 변경 단위에 집중한다.
-- `main`에 직접 Push하지 않는다. PR은 작성자 외 최소 1명의 Reviewer가 검토하고 승인한 후 Squash Merge한다. 병합 후 Feature Branch를 삭제한다.
+- `main`에 직접 Push하지 않는다. PR 승인과 Reviewer 지정은 필수가 아니며, 작성자가 Squash Merge할 수 있다. 병합 후 Feature Branch를 삭제한다.
 - 공유 Interface 또는 Architecture를 변경하기 전에 관련 Module Owner와 협의하고 합의 내용을 Issue 또는 PR에 남긴다.
 - 이 문서는 협업 정책이다. GitHub 서버의 Branch Protection이나 승인 강제를 자동 설정하지 않는다.
 
@@ -42,4 +42,4 @@
 - Hook 설정은 Git으로 공유되지 않는다. `git config --local --get core.hooksPath`로 `.githooks` 설정을 확인한다. 기존 Hooks가 있다면 이 설정 전에 팀과 통합한다.
 - 기본 Scanner는 현재 Index와 추적 파일의 작업 트리를 검사한다. Push 검토는 실제 전송 대상 Tip과 새로 전달되는 Commit의 파일 내용도 검사한다. 중간 Commit에서 추가했다가 삭제한 Secret도 후보에 포함한다. 한 번에 새 Commit 최대 256개까지 검사하며 초과하면 차단한다. 전체 기존 History나 모든 Issue/PR은 조회하지 않는다.
 - 이미 Remote에 있는 전체 이력, Untracked 파일, Submodule 내부, 암호화/인코딩/압축된 데이터와 모든 개인정보를 검사하지 못한다. Submodule 또는 필요한 Git Object 누락은 검증 완료로 간주하지 않고 차단한다. Commit/PR 수동 검토를 병행한다.
-- 이 로컬 Hook은 우회 가능하다. PR Review, 수동 개인정보 확인과 최소 권한 원칙을 함께 적용한다.
+- 이 로컬 Hook은 우회 가능하다. 수동 개인정보 확인과 최소 권한 원칙을 함께 적용한다.
