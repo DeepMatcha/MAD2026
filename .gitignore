@@ -33,3 +33,45 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Local secrets (example templates must contain placeholders only)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+!.env.dist
+credentials
+credentials.*
+credential.json
+credential.yaml
+credential.yml
+secrets
+secrets.*
+secret.json
+secret.yaml
+secret.yml
+service-account*.json
+service_account*.json
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+.netrc
+_netrc
+.aws/
+.ssh/
+
+# Private LMS exports and personal academic data: use synthetic fixtures instead
+private-data/
+personal-data/
+lms-exports/
+student-records/
+
+# Python scanner cache
+__pycache__/
+*.py[cod]
