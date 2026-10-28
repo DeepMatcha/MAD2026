@@ -22,6 +22,9 @@
 - 민감정보를 Logs, Screenshots, Fixtures, Issue, PR 또는 테스트 결과에 포함하지 않는다. 진단 결과에도 Secret의 실제 값을 출력하지 않는다.
 - `.gitignore`는 이미 추적 중인 파일을 보호하지 않는다. Commit할 파일과 Diff를 직접 검토한다. Scanner가 모든 개인정보 또는 Secret을 검출한다고 가정하지 않는다.
 - Push 전에 `python3 scripts/check-sensitive.py`를 실행하고 결과를 확인한다. Windows에서 `python3`가 없다면 Python 3의 `python scripts/check-sensitive.py`를 사용한다.
+- Scanner는 의심 항목을 제시하고 개발 Agent가 최종 판단한다. 실제 Credential은 제거·대체하고, 정상 코드 또는 Synthetic Data는 해당 항목의 판정 사유를 기록한다. 판단 불가 항목은 보류한다. 절차는 `docs/security-review.md`를 따른다.
+- Push 전에 Commit을 확정하고 `python3 scripts/security-review.py --prepare origin refs/heads/<branch>`로 검토 자료를 생성한다. Agent는 모든 후보와 Push 범위를 검토하고 로컬 `pending.json`에 Reviewer, 전체 검토 사유, 항목별 판정·사유를 기록한 후 `--approve`를 실행한다. 후보가 없어도 최종 검토 기록이 필요하다.
+- 승인은 정확한 Push 대상 Commit·Remote·Ref·검사 코드·추적 파일 상태에만 적용한다. 변경 후 재검토한다. 기록은 각 Clone의 Git 관리 디렉터리에만 보관하고 Commit하지 않는다. Hook 우회나 포괄적 Allowlist로 대신하지 않는다.
 - Secret이 발견되면 Push를 중단한다. 실제 Secret이 이미 공유되었다면 즉시 폐기/회전하고 담당자와 제거 절차를 협의한다. Scanner를 통과하기 위해 Secret을 단순히 숨기거나 Hook을 우회하지 않는다.
 
 ## Local Verification and Setup
@@ -35,7 +38,8 @@
   python3 scripts/check-sensitive.py
   ```
 
-- `.githooks/pre-push`는 `python3`를 우선 사용하고, 해당 명령이 Python 3로 실행되지 않으면 `python`을 확인한다. Python 3가 없거나 Scanner가 실패하면 Push를 중단한다.
+- `.githooks/pre-push`는 `python3`를 우선 사용하고, 해당 명령이 Python 3로 실행되지 않으면 `python`을 확인한다. Python 3가 없거나 검사 실행 실패·미검토·미해결 후보·승인 범위 불일치가 있으면 Push를 중단한다. Hook은 Agent를 자동 호출하지 않는다.
 - Hook 설정은 Git으로 공유되지 않는다. `git config --local --get core.hooksPath`로 `.githooks` 설정을 확인한다. 기존 Hooks가 있다면 이 설정 전에 팀과 통합한다.
-- Scanner는 현재 Index와 추적 파일의 작업 트리를 검사한다. 과거 Commit, 삭제된 파일, Untracked 파일, Submodule 내부, 암호화/인코딩/압축된 데이터와 모든 개인정보를 검사하지 못한다. 이전 Commit에 포함된 Secret은 현재 파일에서 제거해도 Push 이력에 남을 수 있으므로 Commit/PR 검토가 추가로 필요하다.
+- 기본 Scanner는 현재 Index와 추적 파일의 작업 트리를 검사한다. Push 검토는 실제 전송 대상 Tip과 새로 전달되는 Commit의 파일 내용도 검사한다. 중간 Commit에서 추가했다가 삭제한 Secret도 후보에 포함한다. 한 번에 새 Commit 최대 256개까지 검사하며 초과하면 차단한다. 전체 기존 History나 모든 Issue/PR은 조회하지 않는다.
+- 이미 Remote에 있는 전체 이력, Untracked 파일, Submodule 내부, 암호화/인코딩/압축된 데이터와 모든 개인정보를 검사하지 못한다. Submodule 또는 필요한 Git Object 누락은 검증 완료로 간주하지 않고 차단한다. Commit/PR 수동 검토를 병행한다.
 - 이 로컬 Hook은 우회 가능하다. PR Review, 수동 개인정보 확인과 최소 권한 원칙을 함께 적용한다.

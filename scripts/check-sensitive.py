@@ -6,6 +6,7 @@ Only Python's standard library and the Git executable are required.
 """
 
 import os
+import hashlib
 from pathlib import Path, PurePosixPath
 import re
 import subprocess
@@ -46,7 +47,7 @@ PLACEHOLDERS = {
 }
 
 
-def literal_secret(value):
+def literal_secret(value, quoted=False):
     """Ignore short examples and common environment/config references."""
     value = value.strip()
     lowered = value.lower()
@@ -54,12 +55,12 @@ def literal_secret(value):
         return False
     if re.fullmatch(r"[xX*._-]+", value) or re.fullmatch(r"<[^<>]+>", value):
         return False
-    if value.startswith(("$", "{{", "%(")):
+    if not quoted and value.startswith(("$", "{{", "%(")):
         return False
-    if lowered.startswith(("process.env.", "os.environ", "os.getenv(", "getenv(", "system.getenv(", "env(", "config.", "settings.")):
+    if not quoted and lowered.startswith(("process.env.", "os.environ", "os.getenv(", "getenv(", "system.getenv(", "env(", "config.", "settings.")):
         return False
     # Bare expressions such as get_token() are not literal credentials.
-    if "(" in value or lowered in {"string", "str", "bytes", "optional[str]"}:
+    if not quoted and ("(" in value or lowered in {"string", "str", "bytes", "optional[str]"}):
         return False
     return True
 
@@ -90,7 +91,7 @@ def safe_path(name):
     # Do not expose even a path when its filename embeds a credential.
     if any(pattern.search(name) for _, pattern in PATTERNS):
         return "<redacted-path>"
-    if any(literal_secret(next(v for v in match.groups() if v is not None)) for match in ASSIGNMENT.finditer(name)):
+    if ASSIGNMENT.search(name):
         return "<redacted-path>"
     if CREDENTIAL_URL.search(name) or BEARER.search(name):
         return "<redacted-path>"
@@ -106,20 +107,23 @@ def inspect_content(name, source, data, findings):
     for pattern, rule in ((ASSIGNMENT, "credential-assignment"), (BEARER, "authorization-token"), (CREDENTIAL_URL, "credential-url")):
         for match in pattern.finditer(text):
             value = next(group for group in match.groups() if group is not None)
-            if literal_secret(value):
+            quoted = pattern is not ASSIGNMENT or match.group(1) is not None or match.group(2) is not None
+            if literal_secret(value, quoted=quoted):
                 findings.add((name, source, text.count("\n", 0, match.start()) + 1, rule))
 
 
-def scan():
+def collect_local():
     root = Path(os.fsdecode(git(Path.cwd(), "rev-parse", "--show-toplevel")).strip())
     records = git(root, "ls-files", "--stage", "-z").split(b"\0")
     findings = set()
+    digest = hashlib.sha256()
     blobs = {}
     count = 0
     for record in records:
         if not record:
             continue
         metadata, raw_name = record.split(b"\t", 1)
+        digest.update(record + b"\0")
         mode, oid, stage = metadata.split()
         name = os.fsdecode(raw_name)
         if stage != b"0":
@@ -148,7 +152,15 @@ def scan():
             data = None
         if data is not None:
             inspect_content(name, "worktree", data, findings)
+            digest.update(b"present:" + hashlib.sha256(data).digest())
+        else:
+            digest.update(b"missing")
         count += 1
+    return findings, count, digest.hexdigest()
+
+
+def scan():
+    findings, count, _ = collect_local()
     if findings:
         for name, source, line, rule in sorted(findings):
             location = f":{line}" if line else ""
