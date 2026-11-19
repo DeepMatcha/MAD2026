@@ -13,3 +13,16 @@
 ```sh
 ./gradlew :backend:assembleDebug
 ```
+
+## 프론트엔드 계약 검증
+
+`FrontendStub`은 `:backend`의 JVM 테스트 소스에서 `MadDependencies`를 호출한다. 과목·과제 조회, 과목별 동기화 오류, 수동 새로고침의 부분 성공, 취소 후 재시도를 합성 데이터로 검사한다. 프로덕션 앱은 이 스텁에 의존하지 않는다.
+
+`backend`에 푸시하거나 `backend`를 대상으로 PR을 열면 [Backend CI](../.github/workflows/backend-ci.yml)가 실행된다. 같은 검증을 로컬에서도 실행할 수 있다.
+
+```sh
+./gradlew :backend:assembleDebug :backend:testDebugUnitTest \
+  :contract:testDebugUnitTest :demo-data:testDebugUnitTest
+```
+
+현재 테스트는 `:demo-data`의 `DemoMadDependencies`를 주입한다. 백엔드 구현이 준비되면 테스트 데이터로 초기화한 실제 `MadDependencies`를 같은 스텁에 주입해 검증할 수 있다.

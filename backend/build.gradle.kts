@@ -18,4 +18,6 @@ android {
 
 dependencies {
     api(project(":contract"))
+    testImplementation(project(":demo-data"))
+    testImplementation(libs.junit)
 }
