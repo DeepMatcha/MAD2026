@@ -21,6 +21,8 @@ val refresh = backend.sync.startSync()
 
 `CanvasSchoolBackend.open(file, scope, credential)`은 실행 중 공급되는 Canvas 토큰으로 중앙대 eClass REST API를 조회하는 백엔드 진입점이다. 호출자가 승인된 계정별로 앱 전용 저장 파일과 해당 계정의 토큰 공급 함수를 전달한다. 열기와 Flow 구독은 캐시만 읽는다. `refreshCourses()`로 활성 수강 과목을 확인한 뒤 `sync.startSync()`로 해당 과목의 과제와 본인 제출 상태를 수집한다. 과목 ID는 활성 수강 응답에 따라 정해진다.
 
+Canvas가 `active`로 반환하는 수강 목록에는 이전 학기 과목이 포함될 수 있다. 특정 과목만 확인하려면 `refreshCourses()` 결과의 로컬 `Course.id`를 `sync.startSync(courseIds = listOf(course.id))`에 전달한다. `source.externalId`는 eClass 원본 ID다.
+
 토큰은 지정된 eClass HTTPS API의 Bearer 인증에만 쓰이며 로컬 스냅샷에는 과목·과제와 동기화 상태가 저장된다. 과목이나 과제 목록 조회가 중간에 실패하면 해당 목록의 마지막 성공 결과를 유지한다. Canvas 과제 설명은 원본 HTML이고, 마감은 Canvas가 현재 계정에 제공한 값을 KST로 변환한다.
 
 과제 목록의 모든 페이지를 읽은 다음 체크포인트와 비교해 변경 항목만 저장한다. 로컬 삭제는 현재 계정의 전체 과제 목록에서 부재가 확인된 항목에 적용한다. 활성 수강 목록에서 빠진 과목은 캐시를 유지하고 동기화 대상에서 제외한다.
