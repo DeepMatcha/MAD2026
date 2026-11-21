@@ -9,6 +9,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.deepmatcha.mad.backend.ai.LocalAnalysisService
+import org.deepmatcha.mad.backend.ai.OnDeviceTextEngine
 import org.deepmatcha.mad.backend.school.LocalSchoolRepository
 import org.deepmatcha.mad.backend.school.LocalSchoolSettings
 import org.deepmatcha.mad.backend.school.SchoolAssignmentCalendar
@@ -17,6 +19,7 @@ import org.deepmatcha.mad.backend.school.SchoolStore
 import org.deepmatcha.mad.backend.school.SchoolSyncService
 import org.deepmatcha.mad.backend.school.SyntheticSchoolSource
 import org.deepmatcha.mad.contract.ApiResult
+import org.deepmatcha.mad.contract.AnalysisService
 import org.deepmatcha.mad.contract.CalendarRepository
 import org.deepmatcha.mad.contract.SchoolRepository
 import org.deepmatcha.mad.contract.SettingsRepository
@@ -27,6 +30,7 @@ class SchoolBackend private constructor(
     val school: SchoolRepository,
     val calendar: CalendarRepository,
     val sync: SyncService,
+    val analysis: AnalysisService,
     private val localSettings: LocalSchoolSettings,
 ) {
     val settings: SettingsRepository get() = localSettings
@@ -41,9 +45,10 @@ class SchoolBackend private constructor(
             source: SchoolAssignmentSource,
             scope: CoroutineScope,
             clock: Clock = Clock.systemUTC(),
+            device: OnDeviceTextEngine? = null,
             schedule: suspend (Int) -> Unit = {},
         ): SchoolBackend = withContext(Dispatchers.IO) {
-            open(SchoolStore(file), source, scope, clock, schedule).also { it.localSettings.ensureSchedule() }
+            open(SchoolStore(file), source, scope, clock, device, schedule).also { it.localSettings.ensureSchedule() }
         }
 
         internal fun open(
@@ -51,13 +56,18 @@ class SchoolBackend private constructor(
             source: SchoolAssignmentSource,
             scope: CoroutineScope,
             clock: Clock,
+            device: OnDeviceTextEngine? = null,
             schedule: suspend (Int) -> Unit,
-        ) = SchoolBackend(
-            school = LocalSchoolRepository(store),
-            calendar = SchoolAssignmentCalendar(store, clock),
-            sync = SchoolSyncService(store, source, scope, clock),
-            localSettings = LocalSchoolSettings(store, schedule),
-        )
+        ): SchoolBackend {
+            val school = LocalSchoolRepository(store)
+            return SchoolBackend(
+                school = school,
+                calendar = SchoolAssignmentCalendar(store, clock),
+                sync = SchoolSyncService(store, source, scope, clock),
+                analysis = LocalAnalysisService(store, school, scope, clock, device),
+                localSettings = LocalSchoolSettings(store, schedule),
+            )
+        }
     }
 }
 

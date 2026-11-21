@@ -37,7 +37,9 @@ import org.deepmatcha.mad.contract.SyncStatus
 internal class SchoolStore(file: File) : SchoolAssignmentSyncStore {
     private val path = file.absoluteFile.toPath()
     private val writer = Mutex()
-    private val mutableState = MutableStateFlow(readSnapshot().recoverInterruptedSync())
+    private val mutableState = MutableStateFlow(readSnapshot().recoverInterruptedSync().let { state ->
+        state.copy(analysis = state.analysis.cancelActiveJobs())
+    })
     val state: StateFlow<SchoolState> = mutableState.asStateFlow()
 
     /**

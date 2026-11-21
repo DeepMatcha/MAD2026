@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.deepmatcha.mad.backend.ai.OnDeviceTextEngine
 import org.deepmatcha.mad.backend.school.SchoolStore
 import org.deepmatcha.mad.backend.school.canvas.CanvasClient
 import org.deepmatcha.mad.backend.school.canvas.CanvasSchoolSource
@@ -22,6 +23,7 @@ class CanvasSchoolBackend private constructor(
     val school = backend.school
     val sync = backend.sync
     val calendar = backend.calendar
+    val analysis = backend.analysis
     private val rosterRefresh = Mutex()
 
     /** Explicitly refresh active student courses. A failed listing leaves the cached roster intact. */
@@ -52,14 +54,23 @@ class CanvasSchoolBackend private constructor(
             credential: suspend () -> String?,
         ): CanvasSchoolBackend = open(file, scope, CanvasClient(credential))
 
+        /** Uses the caller-provisioned model runtime when the on-device analysis mode is selected. */
+        suspend fun open(
+            file: File,
+            scope: CoroutineScope,
+            device: OnDeviceTextEngine,
+            credential: suspend () -> String?,
+        ): CanvasSchoolBackend = open(file, scope, CanvasClient(credential), device)
+
         internal suspend fun open(
             file: File,
             scope: CoroutineScope,
             client: CanvasClient,
+            device: OnDeviceTextEngine? = null,
         ): CanvasSchoolBackend = withContext(Dispatchers.IO) {
             val store = SchoolStore(file)
             val source = CanvasSchoolSource(client)
-            val backend = SchoolBackend.open(store, source, scope, Clock.systemUTC(), schedule = {})
+            val backend = SchoolBackend.open(store, source, scope, Clock.systemUTC(), device, schedule = {})
             CanvasSchoolBackend(store, source, backend)
         }
     }

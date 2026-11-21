@@ -29,6 +29,12 @@ Canvas가 `active`로 반환하는 수강 목록에는 이전 학기 과목이 �
 
 이 진입점은 승인된 호출자가 시작하는 조회용이다. Android의 앱 로그인 연결, eClass 웹 세션, LearningX 조회와 쓰기 작업은 별도 통합 범위다.
 
+## AI 분석 연결
+
+`CanvasSchoolBackend.analysis`에서 [AI 계약과 프론트 연결 순서](../API.md#27-ai수동검토)를 사용한다. `setAIConfig()`로 개인 서버를 지정하거나, 설치된 모델로 만든 `OnDeviceTextEngine`을 `CanvasSchoolBackend.open()`에 넘겨 `ON_DEVICE`를 선택한다. 개인 서버 키는 Android Keystore로 암호화해 저장한다. 기본값인 `DISABLED`에서는 AI 호출이 발생하지 않는다.
+
+분석은 자료 한 건을 대상으로 사용자가 요청할 때 시작한다. 후보와 근거는 수동 검토로 보이며 승인·수정·무시한 결정은 로컬에 저장된다. 기기용 모델 준비와 ABI 요구 사항은 [LiteRT-LM 모듈 안내](../on-device-litert/README.md)에 있다.
+
 ## 공통 계약 검증
 
 `FrontendStub`은 JVM 테스트에서 화면 없이 `MadDependencies`를 호출한다. 기존 데모 구현과 함께, 제어 가능한 합성 응답과 임시 파일을 사용하는 백엔드 테스트를 실행한다. 부분 성공, 실패한 과목의 체크포인트, 취소·프로세스 중단 후 재시도, 확인된 삭제, 사용자 상태와 날짜 승인, 동기화 주기 설정을 검증한다.
@@ -37,5 +43,5 @@ Canvas가 `active`로 반환하는 수강 목록에는 이전 학기 과목이 �
 
 ```sh
 ./gradlew --max-workers=2 :backend:assembleDebug :backend:testDebugUnitTest \
-  :contract:testDebugUnitTest :demo-data:testDebugUnitTest
+  :contract:testDebugUnitTest :demo-data:testDebugUnitTest :on-device-litert:assembleDebug
 ```

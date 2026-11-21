@@ -2,6 +2,7 @@ package org.deepmatcha.mad.backend.school
 
 import java.time.Instant
 import java.util.UUID
+import org.deepmatcha.mad.backend.ai.StoredAnalysis
 import org.deepmatcha.mad.contract.ApiErrorCode
 import org.deepmatcha.mad.contract.ApiResult
 import org.deepmatcha.mad.contract.AppSettings
@@ -24,6 +25,7 @@ internal data class SchoolState(
     val settings: AppSettings = AppSettings(),
     val notificationSettings: NotificationSettings = NotificationSettings(),
     val activeCourseExternalIds: Set<String>? = null,
+    val analysis: StoredAnalysis = StoredAnalysis(),
 )
 
 internal fun SchoolState.isCourseSyncEnabled(course: Course): Boolean =

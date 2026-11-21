@@ -1,5 +1,7 @@
 package org.deepmatcha.mad.demo
 
+import java.net.URI
+import java.net.URISyntaxException
 import java.time.Instant
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -10,6 +12,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import org.deepmatcha.mad.contract.AIConfigPublic
+import org.deepmatcha.mad.contract.AIMode
+import org.deepmatcha.mad.contract.AIReadiness
 import org.deepmatcha.mad.contract.AnalysisResult
 import org.deepmatcha.mad.contract.AnalysisService
 import org.deepmatcha.mad.contract.AnalysisState
@@ -46,6 +50,7 @@ internal class DemoIntegrations(
     )
     private val google = GoogleCalendarInfo("demo-calendar", "개인 일정", primary = true, writable = true)
     private val syncJobs = MutableStateFlow(mapOf<String, SyncPreview>())
+    private val aiSettings = MutableStateFlow(DemoAISettings())
     private val analysisResults = MutableStateFlow(mapOf<String, AnalysisResult>())
     private val reviews = MutableStateFlow(listOf(fixtures.review))
 
@@ -102,14 +107,58 @@ internal class DemoIntegrations(
         return startSync(job.provider, job.courseIds)
     }
 
-    override suspend fun getAIConfig() = ApiResult.Success(AIConfigPublic(null, null, false, false))
+    override suspend fun getAIConfig() = ApiResult.Success(aiSettings.value.asPublicConfig())
 
-    override suspend fun setAIConfig(baseUrl: String, apiKey: String, modelId: String?) = unsupported()
+    override suspend fun setAIMode(mode: AIMode): ApiResult<Unit> {
+        aiSettings.update { it.copy(mode = mode) }
+        return ApiResult.Success(Unit)
+    }
 
-    override suspend fun testAIConnection() =
-        ApiResult.Success(ConnectionTestResult(false, emptySet(), ApiErrorCode.NETWORK))
+    override suspend fun setAIConfig(baseUrl: String, apiKey: String, modelId: String?): ApiResult<Unit> {
+        val endpoint = try {
+            URI(baseUrl.trim())
+        } catch (_: URISyntaxException) {
+            return invalidArgument()
+        }
+        val scheme = endpoint.scheme?.lowercase()
+        if (scheme !in setOf("https", "http") || endpoint.host == null || endpoint.rawUserInfo != null ||
+            endpoint.rawQuery != null || endpoint.rawFragment != null || (scheme == "http" && apiKey.isNotBlank())
+        ) return invalidArgument()
+
+        aiSettings.value = DemoAISettings(
+            mode = AIMode.PERSONAL_SERVER,
+            personalServer = AIConfigPublic(
+                baseUrl = endpoint.toString(),
+                modelId = modelId?.trim()?.takeUnless(String::isBlank),
+                configured = true,
+                connected = false,
+                mode = AIMode.PERSONAL_SERVER,
+                readiness = AIReadiness.CONFIGURED,
+            ),
+        )
+        return ApiResult.Success(Unit)
+    }
+
+    override suspend fun testAIConnection(): ApiResult<ConnectionTestResult> {
+        val state = aiSettings.value
+        if (state.mode != AIMode.PERSONAL_SERVER) {
+            return ApiResult.Success(ConnectionTestResult(false, emptySet(), ApiErrorCode.UNSUPPORTED))
+        }
+        val server = state.personalServer
+            ?: return ApiResult.Success(ConnectionTestResult(false, emptySet(), ApiErrorCode.INVALID_ARGUMENT))
+
+        // The preview simulates a successful connection so the settings screen can display it.
+        aiSettings.compareAndSet(
+            state,
+            state.copy(personalServer = server.copy(connected = true, readiness = AIReadiness.CONNECTED)),
+        )
+        return ApiResult.Success(ConnectionTestResult(true, setOf("models"), null))
+    }
 
     override suspend fun analyzeResource(resourceId: String): ApiResult<String> {
+        val state = aiSettings.value
+        if (state.mode != AIMode.PERSONAL_SERVER) return unsupported()
+        if (state.personalServer == null) return invalidArgument()
         if (fixtures.resources.none { it.id == resourceId }) return null.asResult()
         val jobId = newId()
         val result = AnalysisResult(
@@ -191,4 +240,20 @@ internal class DemoIntegrations(
         JobState(id, kind, JobStatus.FAILED, null, null, null, ApiErrorCode.NOT_FOUND)
 
     private data class SyncPreview(val provider: Provider, val courseIds: List<String>?, val state: JobState)
+
+    private data class DemoAISettings(
+        val mode: AIMode = AIMode.DISABLED,
+        val personalServer: AIConfigPublic? = null,
+    ) {
+        fun asPublicConfig(): AIConfigPublic {
+            if (mode == AIMode.PERSONAL_SERVER && personalServer != null) return personalServer
+
+            val readiness = when (mode) {
+                AIMode.ON_DEVICE, AIMode.CHATGPT_SUBSCRIPTION -> AIReadiness.UNAVAILABLE
+                AIMode.PERSONAL_SERVER -> AIReadiness.NEEDS_SETUP
+                AIMode.DISABLED -> AIReadiness.DISABLED
+            }
+            return AIConfigPublic(null, null, false, false, mode, readiness)
+        }
+    }
 }
