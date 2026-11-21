@@ -23,7 +23,11 @@ internal data class SchoolState(
     val syncStatus: SyncStatus = SyncStatus(SyncState.IDLE, null, null, null),
     val settings: AppSettings = AppSettings(),
     val notificationSettings: NotificationSettings = NotificationSettings(),
+    val activeCourseExternalIds: Set<String>? = null,
 )
+
+internal fun SchoolState.isCourseSyncEnabled(course: Course): Boolean =
+    course.syncEnabled && (activeCourseExternalIds?.contains(course.source.externalId) != false)
 
 internal data class SchoolCourseRecord(
     val externalId: String,
@@ -136,7 +140,7 @@ internal fun SchoolState.applyAssignmentDelta(
 ): Pair<SchoolState, ApiResult<Unit>> {
     val stored = courses[courseId]
         ?: return this to ApiResult.Failure(ApiErrorCode.NOT_FOUND, retryable = false)
-    if (stored.checkpoint != expectedCheckpoint?.value || !stored.course.syncEnabled) {
+    if (stored.checkpoint != expectedCheckpoint?.value || !isCourseSyncEnabled(stored.course)) {
         return this to ApiResult.Failure(ApiErrorCode.CONFLICT, retryable = true)
     }
 

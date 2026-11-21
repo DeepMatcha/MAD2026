@@ -194,7 +194,7 @@ private fun SchoolState.enqueueJob(
     if (previous != null && !previous.hasRetryWork) return this to ApiResult.Failure(ApiErrorCode.CONFLICT, false)
     if (requested?.any { it !in courses } == true) return this to ApiResult.Failure(ApiErrorCode.NOT_FOUND, false)
     val targets = (previous?.retryCourseIds ?: requested?.distinct() ?: courses.keys)
-        .filter { courses[it]?.course?.syncEnabled == true }
+        .filter { courses[it]?.course?.let(::isCourseSyncEnabled) == true }
     val job = StoredSyncJob(
         id = UUID.randomUUID().toString(),
         status = if (targets.isEmpty()) JobStatus.SUCCEEDED else JobStatus.QUEUED,
@@ -216,7 +216,7 @@ private fun SchoolState.beginCourse(
 ): Pair<SchoolState, ApiResult<SourceRef?>> {
     val job = syncJobs[jobId]?.takeIf { it.active } ?: return this to ApiResult.Success(null)
     val course = courses[courseId]
-    if (course == null || !course.course.syncEnabled) {
+    if (course == null || !isCourseSyncEnabled(course.course)) {
         return recordOutcome(job.copy(remainingCourseIds = job.remainingCourseIds - courseId)) to ApiResult.Success(null)
     }
     val previous = course.course.sync
@@ -236,7 +236,7 @@ internal fun SchoolState.recordCourseResult(
     // A cancelled job cannot publish late results, even if the source kept fetching.
     val job = syncJobs[jobId]?.takeIf { it.active && it.runningCourseId == courseId } ?: return this
     val course = courses[courseId]?.course
-    if (course?.syncEnabled != true) {
+    if (course == null || !isCourseSyncEnabled(course)) {
         return restoreCourseStatus(job).recordOutcome(job.copy(remainingCourseIds = job.remainingCourseIds - courseId))
     }
     val (current, result) = when (fetched) {
@@ -282,7 +282,7 @@ private fun SchoolState.finishJob(job: StoredSyncJob, error: ApiErrorCode?): Sch
 private fun SchoolState.failRunningCourse(job: StoredSyncJob, error: ApiErrorCode): SchoolState {
     val courseId = job.runningCourseId ?: return this
     val course = courses[courseId]?.course ?: return this
-    if (!course.syncEnabled) return restoreCourseStatus(job)
+    if (!isCourseSyncEnabled(course)) return restoreCourseStatus(job)
     val attemptedAt = course.sync.lastAttemptAt ?: return this
     return withCourseFailure(courseId, error, attemptedAt)
 }

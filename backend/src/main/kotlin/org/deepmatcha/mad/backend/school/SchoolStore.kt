@@ -65,7 +65,10 @@ internal class SchoolStore(file: File) : SchoolAssignmentSyncStore {
         }
     }
 
-    suspend fun upsertCourses(records: List<SchoolCourseRecord>): ApiResult<Unit> {
+    suspend fun upsertCourses(
+        records: List<SchoolCourseRecord>,
+        replaceActiveRoster: Boolean = false,
+    ): ApiResult<Unit> {
         val ids = records.map(SchoolCourseRecord::externalId)
         if (ids.toSet().size != ids.size || ids.any(String::isBlank)) {
             return ApiResult.Failure(ApiErrorCode.PARSE_FAILED, retryable = false)
@@ -86,7 +89,8 @@ internal class SchoolStore(file: File) : SchoolAssignmentSyncStore {
                     )
                 updated[course.id] = StoredCourse(course, existing?.checkpoint)
             }
-            current.copy(courses = updated) to ApiResult.Success(Unit)
+            val activeIds = if (replaceActiveRoster) ids.toSet() else current.activeCourseExternalIds
+            current.copy(courses = updated, activeCourseExternalIds = activeIds) to ApiResult.Success(Unit)
         }
     }
 

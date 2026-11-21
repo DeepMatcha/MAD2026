@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.map
 import org.deepmatcha.mad.contract.ApiErrorCode
 import org.deepmatcha.mad.contract.ApiResult
 import org.deepmatcha.mad.contract.Assignment
+import org.deepmatcha.mad.contract.Course
 import org.deepmatcha.mad.contract.Provider
 import org.deepmatcha.mad.contract.Resource
 import org.deepmatcha.mad.contract.ResourceKind
@@ -13,10 +14,13 @@ import org.deepmatcha.mad.contract.SourceRef
 
 internal class LocalSchoolRepository(private val store: SchoolStore) : SchoolRepository {
     override fun observeCourses() = store.state
-        .map { state -> state.courses.values.map { it.course } }
+        .map { state -> state.courses.values.map { state.effectiveCourse(it.course) } }
         .distinctUntilChanged()
 
-    override suspend fun getCourse(courseId: String) = store.state.value.courses[courseId]?.course.orNotFound()
+    override suspend fun getCourse(courseId: String): ApiResult<Course> {
+        val state = store.state.value
+        return state.courses[courseId]?.course?.let { state.effectiveCourse(it) }.orNotFound()
+    }
 
     override suspend fun setCourseSyncEnabled(courseId: String, enabled: Boolean): ApiResult<Unit> =
         store.update { state ->
@@ -76,6 +80,8 @@ internal class LocalSchoolRepository(private val store: SchoolStore) : SchoolRep
         source = SourceRef(Provider.SCHOOL, remote.externalId, remote.url, remote.remoteUpdatedAt),
         fileInfo = null,
     )
+
+    private fun SchoolState.effectiveCourse(course: Course) = course.copy(syncEnabled = isCourseSyncEnabled(course))
 }
 
 internal fun notFound() = ApiResult.Failure(ApiErrorCode.NOT_FOUND, retryable = false)

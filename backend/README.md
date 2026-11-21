@@ -17,7 +17,15 @@ val refresh = backend.sync.startSync()
 - 학교가 과제의 날짜를 바꾸면 `calendar.observePendingChanges()`에 표시한다. `resolvePendingChange()`로 승인하기 전까지 기존 날짜를 사용한다. 날짜만 수집된 값은 시각 없이 보존한다.
 - `observeCourseSyncStatus()`로 부분 실패를 과목별로 확인한다. 비활성 과목은 제외하고, `retrySync()`는 실패 또는 중단한 작업의 남은 과목을 처리한다. 앱 프로세스가 중단되면 작업을 재시도할 수 있다.
 
-학교 실연동에서 인증 및 세션 갱신을 연결하면 `SchoolAssignmentSource`에서 합성 수집원을 교체할 수 있다.
+## 승인된 환경에서 eClass 조회
+
+`CanvasSchoolBackend.open(file, scope, credential)`은 실행 중 공급되는 Canvas 토큰으로 중앙대 eClass REST API를 조회하는 백엔드 진입점이다. 호출자가 승인된 계정별로 앱 전용 저장 파일과 해당 계정의 토큰 공급 함수를 전달한다. 열기와 Flow 구독은 캐시만 읽는다. `refreshCourses()`로 활성 수강 과목을 확인한 뒤 `sync.startSync()`로 해당 과목의 과제와 본인 제출 상태를 수집한다. 과목 ID는 활성 수강 응답에 따라 정해진다.
+
+토큰은 지정된 eClass HTTPS API의 Bearer 인증에만 쓰이며 로컬 스냅샷에는 과목·과제와 동기화 상태가 저장된다. 과목이나 과제 목록 조회가 중간에 실패하면 해당 목록의 마지막 성공 결과를 유지한다. Canvas 과제 설명은 원본 HTML이고, 마감은 Canvas가 현재 계정에 제공한 값을 KST로 변환한다.
+
+과제 목록의 모든 페이지를 읽은 다음 체크포인트와 비교해 변경 항목만 저장한다. 로컬 삭제는 현재 계정의 전체 과제 목록에서 부재가 확인된 항목에 적용한다. 활성 수강 목록에서 빠진 과목은 캐시를 유지하고 동기화 대상에서 제외한다.
+
+이 진입점은 승인된 호출자가 시작하는 조회용이다. Android의 앱 로그인 연결, eClass 웹 세션, LearningX 조회와 쓰기 작업은 별도 통합 범위다.
 
 ## 공통 계약 검증
 
