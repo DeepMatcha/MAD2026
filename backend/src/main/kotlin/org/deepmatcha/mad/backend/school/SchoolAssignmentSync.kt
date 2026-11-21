@@ -1,7 +1,6 @@
 package org.deepmatcha.mad.backend.school
 
 import java.time.Instant
-import org.deepmatcha.mad.contract.ApiErrorCode
 import org.deepmatcha.mad.contract.ApiResult
 import org.deepmatcha.mad.contract.KstMoment
 
@@ -46,17 +45,16 @@ internal interface SchoolAssignmentSyncStore {
     suspend fun readCheckpoint(courseId: String): AssignmentCheckpoint?
 
     /**
-     * Applies the delta and advances the checkpoint in one local transaction. An outdated
-     * checkpoint returns CONFLICT. Existing app IDs and local edits are preserved. External
-     * date changes create pending changes so the displayed date stays in place until approval.
+     * Persists the outcome of an active course attempt. A valid delta, the new checkpoint and
+     * job progress are committed together. Invalid or failed responses update status while
+     * preserving existing assignments and the last successful checkpoint.
+     * Returns Failure if the outcome could not be written to storage.
      */
-    suspend fun applyDelta(
+    suspend fun recordAttempt(
+        jobId: String,
         courseId: String,
         expectedCheckpoint: AssignmentCheckpoint?,
-        delta: AssignmentDelta,
+        fetched: ApiResult<AssignmentDelta>,
         completedAt: Instant,
     ): ApiResult<Unit>
-
-    /** Records this course's failed attempt without touching its data or last-success marker. */
-    suspend fun recordFailure(courseId: String, error: ApiErrorCode, attemptedAt: Instant)
 }
