@@ -36,11 +36,20 @@ import org.deepmatcha.mad.contract.SyncStatus
 /** A single process-owned store per file. Publish changes only after the snapshot is committed. */
 internal class SchoolStore(file: File) : SchoolAssignmentSyncStore {
     private val path = file.absoluteFile.toPath()
+    val namespace: String = UUID.nameUUIDFromBytes(path.toString().toByteArray()).toString()
     private val writer = Mutex()
     private val mutableState = MutableStateFlow(readSnapshot().recoverInterruptedSync().let { state ->
         state.copy(analysis = state.analysis.cancelActiveJobs())
     })
     val state: StateFlow<SchoolState> = mutableState.asStateFlow()
+    private var notifyPlanner: ((SchoolState) -> Unit)? = null
+
+    fun onPlannerChange(listener: (SchoolState) -> Unit) {
+        notifyPlanner = listener
+        listener(state.value)
+    }
+
+    suspend fun refreshNotificationDelivery() = writer.withLock { notifyPlanner?.invoke(state.value) ?: Unit }
 
     /**
      * Commits the returned state and then returns the command result. A failure may still
@@ -51,7 +60,8 @@ internal class SchoolStore(file: File) : SchoolAssignmentSyncStore {
     ): ApiResult<T> = withContext(Dispatchers.IO) {
         writer.withLock {
             val current = mutableState.value
-            val (next, result) = transform(current)
+            val (changed, result) = transform(current)
+            val next = changed.queueCalendarEdits(current).recordAlerts(current, Instant.now())
             if (next != current) {
                 currentCoroutineContext().ensureActive()
                 try {
@@ -62,6 +72,9 @@ internal class SchoolStore(file: File) : SchoolAssignmentSyncStore {
                     return@withLock ApiResult.Failure(ApiErrorCode.INTERNAL, retryable = true)
                 }
                 mutableState.value = next
+                if (next.alerts !== current.alerts || next.assignments !== current.assignments ||
+                    next.planner.events !== current.planner.events || next.notificationSettings != current.notificationSettings)
+                    notifyPlanner?.invoke(next)
             }
             result
         }

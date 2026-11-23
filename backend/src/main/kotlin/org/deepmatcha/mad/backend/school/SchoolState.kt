@@ -26,6 +26,9 @@ internal data class SchoolState(
     val notificationSettings: NotificationSettings = NotificationSettings(),
     val activeCourseExternalIds: Set<String>? = null,
     val analysis: StoredAnalysis = StoredAnalysis(),
+    val planner: PlannerState = PlannerState(),
+    val google: GoogleState = GoogleState(),
+    val alerts: Map<String, PlannerAlert> = emptyMap(),
 )
 
 internal fun SchoolState.isCourseSyncEnabled(course: Course): Boolean =

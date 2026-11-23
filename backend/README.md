@@ -2,7 +2,7 @@
 
 앱에서 사용하는 Repository와 Service의 공통 계약은 [API v0.5](../API.md)에 정의되어 있다. `:backend`의 `SchoolBackend.openSynthetic(context)`는 합성 학교 수집원과 기기 로컬 저장을 사용하는 학교·동기화·캘린더·설정 계약 구현을 연다. 앱의 기존 프론트엔드 개발용 진입점은 `:demo-data`를 사용한다.
 
-캘린더 구현은 학교 과제의 조회, 수동 수정과 날짜 승인에 한정된다. 앱 통합 시 로컬 일정과 시간표에 사용할 구현도 함께 구성한다.
+캘린더는 학교 과제, 사용자 일정, 주간 시간표의 날짜별 수업, 동기화한 Google 일정을 함께 조회한다. Notes에는 학교 과제·수집한 공지와 사용자 메모가 표시된다.
 
 ```kotlin
 val backend = SchoolBackend.openSynthetic(context)
@@ -28,6 +28,21 @@ Canvas가 `active`로 반환하는 수강 목록에는 이전 학기 과목이 �
 과제 목록의 모든 페이지를 읽은 다음 체크포인트와 비교해 변경 항목만 저장한다. 로컬 삭제는 현재 계정의 전체 과제 목록에서 부재가 확인된 항목에 적용한다. 활성 수강 목록에서 빠진 과목은 캐시를 유지하고 동기화 대상에서 제외한다.
 
 이 진입점은 승인된 호출자가 시작하는 조회용이다. Android의 앱 로그인 연결, eClass 웹 세션, LearningX 조회와 쓰기 작업은 별도 통합 범위다.
+
+## 시간표와 Notes
+
+`backend.timetable`에서 매주 반복할 수업을 등록한다. `backend.calendar.observeCalendar(range)`가 기간 안의 회차를 전개한다. 주말과 겹치는 시간도 허용한다. 개별 회차에서 수업을 열면 `timetableEntryId`로 원본을 수정할 수 있다.
+
+`backend.notes`는 과목 기본 폴더와 사용자 폴더를 제공한다. 과제의 완료·숨김은 학교 저장소와 공유한다. Canvas 공지는 `refreshNotices(courseId)`로 해당 과목을 명시적으로 새로고침한다. 페이지 조회가 모두 성공했을 때 과목별 캐시를 교체한다. 공지 발행일은 마감일로 추정하지 않는다.
+
+## Google Calendar와 기기 알림
+
+Android에서는 `CanvasSchoolBackend.open(context, file, scope, credential = { ... })` 또는 `SchoolBackend.openSynthetic(context)`를 사용한다. Canvas 저장 파일은 학교 계정마다 앱 전용 경로에 둔다. 파일만 받는 기존 진입점은 기기 알림과 계정 선택 UI를 등록하지 않는다.
+
+1. Google Cloud 프로젝트에서 Calendar API를 사용 설정하고 OAuth 동의 화면과 Android 클라이언트(앱 패키지 및 서명 SHA-1)를 등록한다. Google Play services가 설치된 기기에서 `integrations.beginGoogleAuth()`가 제공하는 Intent를 실행한 뒤 같은 요청 ID로 `completeGoogleAuth`에 결과를 전달한다. 연결 해제는 로컬 연결을 끊고 Google 승인 취소를 요청한다. 네트워크 오류가 나면 연결 해제를 재시도할 수 있다.
+2. `googleCalendar.getGoogleCalendars()`로 대상을 확인하고 `refreshGoogleEvents(range)`로 화면에 필요한 기간을 읽는다. `sync.startSync(Provider.GOOGLE_CALENDAR)`의 기본 조회 범위는 서울 기준 오늘 전후 1년이다. 구독은 저장된 일정만 읽는다.
+3. 사용자 일정 생성 전 `setAutoExport(true, calendarId)`를 선택하면 새 사용자 일정의 내보내기가 예약된다. 학교 과제는 명시적으로 내보낼 수 있다. 수정·삭제와 내보내기 대기는 저장 파일에 함께 기록되며 Android 백엔드가 열린 동안 및 다시 열릴 때 재시도한다. 일괄 내보내기는 먼저 모든 ID를 검사하며, 계약의 단일 영수증에는 처음 대기한 항목 또는 모두 전송된 경우 첫 항목이 담긴다.
+4. Android 13 이상에서는 화면에서 `POST_NOTIFICATIONS` 권한을 요청하고 결과를 받은 뒤 `refreshNotificationDelivery()`를 호출한다. 백엔드는 마감·이용 가능 시각, 신규 과제, 휴강·온라인 전환, 날짜 변경 승인 요청을 처리한다. 시각이 없는 마감에는 사전 알림을 예약하지 않는다. 기기는 재부팅 후 예약을 복원하며 실제 전달 시각은 OS의 절전 정책을 따른다.
 
 ## AI 분석 연결
 

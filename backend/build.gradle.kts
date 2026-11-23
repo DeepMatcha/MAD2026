@@ -19,6 +19,7 @@ android {
 dependencies {
     api(project(":contract"))
     implementation(libs.gson)
+    implementation(libs.google.auth)
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(project(":demo-data"))
     testImplementation(libs.junit)

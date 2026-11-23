@@ -17,6 +17,7 @@ import org.deepmatcha.mad.contract.LocalEventInput
 import org.deepmatcha.mad.contract.Origin
 import org.deepmatcha.mad.contract.PatchField
 import org.deepmatcha.mad.contract.WorkSummary
+import org.deepmatcha.mad.contract.ExportState
 
 internal class SchoolAssignmentCalendar(
     private val store: SchoolStore,
@@ -25,21 +26,37 @@ internal class SchoolAssignmentCalendar(
     override fun observeCalendar(range: DateRange, includeCompleted: Boolean?) =
         store.state.map { state ->
             val showCompleted = includeCompleted ?: state.settings.showCompletedItems
-            state.assignments.values.mapNotNull { it.calendarItem() }.filter {
+            val classes = state.planner.timetable.values.flatMap { it.occurrences(range) }
+            val exported = state.google.exports.values.groupBy { it.calendarId }.mapValues { (_, entries) -> entries.map { it.eventId }.toSet() }
+            val imported = state.google.cache.flatMap { (calendar, items) ->
+                items.filterNot { it.source?.externalId in exported[calendar].orEmpty() }
+            }
+            (state.assignments.values.mapNotNull { it.calendarItem() } + state.planner.events.values + classes + imported).filter {
                 !it.hidden && (showCompleted || it.completed != true) &&
                     it.startAt.date <= range.to && (it.endAt?.date ?: it.startAt.date) >= range.from
             }.sortedWith(compareBy<CalendarItem> { it.startAt.date }.thenBy { it.startAt.time })
         }.distinctUntilChanged()
 
     override suspend fun getCalendarItem(itemId: String) =
-        store.state.value.assignments[itemId]?.calendarItem().orNotFound()
+        store.state.value.item(itemId).orNotFound()
 
     override suspend fun createLocalEvent(input: LocalEventInput): ApiResult<CalendarItem> =
-        ApiResult.Failure(ApiErrorCode.UNSUPPORTED, retryable = false)
+        store.update { state ->
+            val item = CalendarItem(newId(), Origin.USER, input.kind, input.title, input.description,
+                input.startAt, input.endAt, input.courseId, null, input.classMode, input.location, null,
+                if (input.kind == CalendarKind.ASSIGNMENT) false else null, false, null)
+            state.saveEvent(item)
+        }
 
     override suspend fun updateCalendarItem(itemId: String, patch: CalendarItemPatch): ApiResult<CalendarItem> =
         store.update { state ->
-            val assignment = state.assignments[itemId] ?: return@update state to notFound()
+            val local = state.planner.events[itemId]
+            if (local != null) return@update state.saveEvent(local.copy(
+                title = patch.title.or(local.title), description = patch.description.or(local.description),
+                startAt = patch.startAt.or(local.startAt), endAt = patch.endAt.or(local.endAt),
+                classMode = patch.classMode.or(local.classMode), completed = patch.completed.or(local.completed)))
+            val assignment = state.assignments[itemId] ?: return@update state to
+                if (state.item(itemId) != null) unsupported() else notFound()
             val current = assignment.overrides
             val title = patch.title.or(current.title)
             if (title != null && title.isBlank()) {
@@ -64,8 +81,23 @@ internal class SchoolAssignmentCalendar(
         }
 
     override suspend fun deleteLocalEvent(itemId: String): ApiResult<DeleteReceipt> =
-        if (itemId in store.state.value.assignments) ApiResult.Failure(ApiErrorCode.UNSUPPORTED, retryable = false)
-        else notFound()
+        store.update { state ->
+            if (itemId !in state.planner.events) return@update state to
+                if (itemId in state.assignments || state.item(itemId) != null) unsupported() else notFound()
+            val remote = if (state.google.exports.values.any { it.item.id == itemId }) ExportState.QUEUED else ExportState.NOT_APPLICABLE
+            state.copy(planner = state.planner.copy(events = state.planner.events - itemId)) to ApiResult.Success(DeleteReceipt(true, remote))
+        }
+
+    private fun SchoolState.saveEvent(item: CalendarItem): Pair<SchoolState, ApiResult<CalendarItem>> {
+        val end = item.endAt
+        val startTime = item.startAt.time
+        val endTime = end?.time
+        if (item.title.isBlank() || (end != null && (end.date < item.startAt.date ||
+                (end.date == item.startAt.date && endTime != null && startTime != null && endTime < startTime))))
+            return this to invalid()
+        if (item.courseId != null && item.courseId !in courses) return this to notFound()
+        return copy(planner = planner.copy(events = planner.events + (item.id to item))) to ApiResult.Success(item)
+    }
 
     override fun observePendingChanges() = store.state
         .map { state -> state.assignments.values.flatMap { it.pendingChanges() } }
@@ -93,26 +125,30 @@ internal class SchoolAssignmentCalendar(
         )
     }.distinctUntilChanged()
 
-    private fun StoredAssignment.calendarItem(): CalendarItem? {
-        val assignment = assignment()
-        return CalendarItem(
-            id = id,
-            origin = Origin.SCHOOL,
-            kind = CalendarKind.ASSIGNMENT,
-            title = assignment.title,
-            description = assignment.description,
-            startAt = assignment.dueAt ?: return null,
-            endAt = overrides.endAt,
-            courseId = courseId,
-            assignmentId = id,
-            classMode = overrides.classMode,
-            location = null,
-            timetableEntryId = null,
-            completed = assignment.completed,
-            hidden = assignment.hidden,
-            source = assignment.source,
-        )
-    }
+}
+
+internal fun SchoolState.item(id: String) = planner.events[id] ?: assignments[id]?.calendarItem() ?: timetableOccurrence(id)
+    ?: google.cache.values.firstNotNullOfOrNull { items -> items.find { it.id == id } }
+
+internal fun StoredAssignment.calendarItem(): CalendarItem? {
+    val assignment = assignment()
+    return CalendarItem(
+        id = id,
+        origin = Origin.SCHOOL,
+        kind = CalendarKind.ASSIGNMENT,
+        title = assignment.title,
+        description = assignment.description,
+        startAt = assignment.dueAt ?: return null,
+        endAt = overrides.endAt,
+        courseId = courseId,
+        assignmentId = id,
+        classMode = overrides.classMode,
+        location = null,
+        timetableEntryId = null,
+        completed = assignment.completed,
+        hidden = assignment.hidden,
+        source = assignment.source,
+    )
 }
 
 internal fun <T> PatchField<T>.or(current: T): T = when (this) {

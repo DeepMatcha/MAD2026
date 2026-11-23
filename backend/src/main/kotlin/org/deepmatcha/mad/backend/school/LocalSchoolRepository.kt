@@ -51,6 +51,10 @@ internal class LocalSchoolRepository(private val store: SchoolStore) : SchoolRep
 
     override suspend fun setSchoolItemHidden(itemId: String, hidden: Boolean): ApiResult<Unit> =
         store.update { state ->
+            if (itemId in state.planner.notices) {
+                val ids = state.planner.hiddenNotices
+                return@update state.copy(planner = state.planner.copy(hiddenNotices = if (hidden) ids + itemId else ids - itemId)) to ApiResult.Success(Unit)
+            }
             val assignment = state.assignments[itemId] ?: return@update state to notFound()
             val updated = assignment.copy(overrides = assignment.overrides.copy(hidden = hidden))
             state.copy(assignments = state.assignments + (itemId to updated)) to ApiResult.Success(Unit)
@@ -58,16 +62,17 @@ internal class LocalSchoolRepository(private val store: SchoolStore) : SchoolRep
 
     override fun observeResources(courseId: String, kinds: Set<ResourceKind>?) =
         store.state.map { state ->
-            if (kinds != null && ResourceKind.ASSIGNMENT !in kinds) emptyList()
-            else state.assignments.values.filter { it.courseId == courseId && !it.overrides.hidden }.map { it.resource() }
+            val assignments = state.assignments.values.filter { it.courseId == courseId && !it.overrides.hidden }.map { it.resource() }
+            (assignments + state.planner.notices.values.filter { it.courseId == courseId && it.id !in state.planner.hiddenNotices })
+                .filter { kinds == null || it.kind in kinds }
         }.distinctUntilChanged()
 
     override suspend fun getResource(resourceId: String) =
-        store.state.value.assignments[resourceId]?.resource().orNotFound()
+        store.state.value.let { (it.assignments[resourceId]?.resource() ?: it.planner.notices[resourceId]).orNotFound() }
 
     override suspend fun getSource(itemId: String): ApiResult<SourceRef?> {
         val state = store.state.value
-        return (state.assignments[itemId]?.assignment()?.source ?: state.courses[itemId]?.course?.source)
+        return (state.assignments[itemId]?.assignment()?.source ?: state.courses[itemId]?.course?.source ?: state.planner.notices[itemId]?.source)
             .orNotFound()
     }
 
