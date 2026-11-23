@@ -5,15 +5,18 @@ import android.os.Process
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
-import com.google.ai.edge.litertlm.ThinkingConfig
+import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.LogSeverity
+import com.google.ai.edge.litertlm.Message
+import com.google.ai.edge.litertlm.MessageCallback
+import com.google.ai.edge.litertlm.ThinkingConfig
 import java.io.File
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -77,18 +80,7 @@ class LiteRtTextEngine(
                     val answers = mutableListOf<String>()
                     for (passage in passages) {
                         val answer = it.createConversation(conversationConfig).use { conversation ->
-                            val output = StringBuilder()
-                            try {
-                                conversation.sendMessageAsync(passage).collect { message ->
-                                    for (part in message.contents.contents) {
-                                        if (part is Content.Text) output.append(part.text)
-                                    }
-                                }
-                            } catch (cancelled: CancellationException) {
-                                conversation.cancelProcess()
-                                throw cancelled
-                            }
-                            output.toString().trim()
+                            conversation.generateText(passage)
                         }
                         if (answer.isEmpty()) return@withContext failure(ApiErrorCode.PARSE_FAILED)
                         answers.add(answer)
@@ -105,6 +97,33 @@ class LiteRtTextEngine(
             } catch (_: Exception) {
                 failure(ApiErrorCode.SOURCE_UNAVAILABLE, "on_device_inference")
             }
+        }
+    }
+
+    private suspend fun Conversation.generateText(passage: String): String {
+        val output = StringBuilder()
+        val done = CompletableDeferred<String>()
+        // The 0.16.1 Flow adapter calls a SendChannel method missing on Android at completion.
+        sendMessageAsync(passage, object : MessageCallback {
+            override fun onMessage(message: Message) {
+                for (part in message.contents.contents) {
+                    if (part is Content.Text) output.append(part.text)
+                }
+            }
+
+            override fun onDone() {
+                done.complete(output.toString().trim())
+            }
+
+            override fun onError(throwable: Throwable) {
+                done.completeExceptionally(throwable)
+            }
+        })
+        return try {
+            done.await()
+        } catch (cancelled: CancellationException) {
+            cancelProcess()
+            throw cancelled
         }
     }
 
