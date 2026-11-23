@@ -193,12 +193,14 @@
 
 | `AIMode` | 용도 | 첫 구현 범위 |
 |---|---|---|
-| `ON_DEVICE` | Android 기기에서 모델을 직접 실행 | 선택 모듈 `:on-device-litert`와 기기에 공급한 CPU용 `.litertlm` 모델로 실행. 런타임이 없으면 `UNAVAILABLE` |
+| `ON_DEVICE` | Android 기기에서 모델을 직접 실행 | 모듈 `:on-device-litert`와 기기에 설치한 CPU용 `.litertlm` 모델로 실행. 분석 서비스에 런타임이 없으면 `UNAVAILABLE` |
 | `PERSONAL_SERVER` | 사용자가 설정한 OpenAI 호환 서버 | 주소, 선택 API Key와 모델 설정, 연결 테스트, 자료 분석 |
 | `CHATGPT_SUBSCRIPTION` | 공식 지원 시 ChatGPT 구독 연결 | 구독 추론 권한과 공식 OAuth 콜백·계정 동작 검증 전까지 `UNAVAILABLE` |
 | `DISABLED` | AI 사용 안 함 | 기본 모드. AI 호출 없이 기존 앱 기능 사용 |
 
-기기 내 모델은 앱이 기기용 런타임과 설치된 모델을 연결할 때 공급한다. 모델 파일 선택·설치는 앱 통합에서 구성한다. ChatGPT 구독의 계정 연결, 이용 권한·모델 조회와 연결 해제 API는 공식 OAuth 연동을 검증할 때 추가한다.
+자료 요약 화면에서 사용자가 Gemma 4 E2B 또는 E4B를 선택하면 `GemmaModelStore.select(model)`이 모델을 다운로드하고 검증한 뒤 선택을 저장한다. `OnDeviceSummarizer(context).summarize(text)`는 선택된 모델로 한국어 요약을 반환한다. 이 경로는 사용자 요청 시 실행하며 일정·과제 후보를 만드는 `AnalysisService`와 별도로 사용할 수 있다. 상태·다운로드 용량·실패 처리와 호출 예제는 [기기 내 AI 모듈](on-device-litert/README.md)에 있다.
+
+ChatGPT 구독의 계정 연결, 이용 권한·모델 조회와 연결 해제 API는 공식 OAuth 연동을 검증할 때 추가한다.
 
 `AIReadiness`는 `DISABLED`(꺼짐), `UNAVAILABLE`(현재 빌드에서 미지원), `NEEDS_SETUP`(설정 없음), `CONFIGURED`(설정 완료, 연결 확인 필요), `CONNECTED`(현재 설정으로 연결 테스트 성공)를 구분한다. `setAIMode()`는 미지원 모드도 선택할 수 있게 하며, 해당 모드는 요청을 시작하지 않는다. 설정 화면은 `getAIConfig()` 결과로 선택 모드와 상태를 표시하고, 저장 또는 연결 테스트 후 상태를 다시 읽는다. 자료 분석 버튼은 지원되고 설정이 완료된 모드에서 제공한다. 데모는 연결 상태와 분석 결과를 각각 모의로 제공한다.
 

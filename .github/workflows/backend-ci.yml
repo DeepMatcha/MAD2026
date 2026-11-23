@@ -25,4 +25,5 @@ jobs:
         run: >
           ./gradlew --no-daemon --console=plain
           :backend:assembleDebug :backend:testDebugUnitTest
-          :contract:testDebugUnitTest :demo-data:testDebugUnitTest :on-device-litert:assembleDebug
+          :contract:testDebugUnitTest :demo-data:testDebugUnitTest
+          :on-device-litert:testDebugUnitTest :app:assembleDebug

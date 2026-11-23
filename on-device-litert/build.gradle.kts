@@ -19,4 +19,5 @@ android {
 dependencies {
     api(project(":backend"))
     implementation(libs.litert.lm.android)
+    testImplementation(libs.junit)
 }

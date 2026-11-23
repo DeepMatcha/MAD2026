@@ -21,6 +21,9 @@ android {
 }
 
 dependencies {
+    implementation(project(":on-device-litert"))
+    implementation(libs.androidx.activity)
+    implementation(libs.kotlinx.coroutines.android)
     implementation(project(":contract"))
     implementation(project(":demo-data"))
 }
