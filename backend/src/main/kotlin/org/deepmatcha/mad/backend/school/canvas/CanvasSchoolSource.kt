@@ -18,6 +18,10 @@ import org.deepmatcha.mad.backend.school.SchoolCourseRecord
 import org.deepmatcha.mad.contract.ApiErrorCode
 import org.deepmatcha.mad.contract.ApiResult
 import org.deepmatcha.mad.contract.KstMoment
+import org.deepmatcha.mad.contract.Resource
+import org.deepmatcha.mad.contract.ResourceKind
+import org.deepmatcha.mad.contract.SourceRef
+import org.deepmatcha.mad.contract.Provider
 
 private const val ACTIVE_COURSES =
     "/api/v1/courses?enrollment_type=student&enrollment_state=active&include%5B%5D=term&per_page=100"
@@ -26,6 +30,22 @@ private val sha256Hex = Regex("[0-9a-f]{64}")
 private val seoul = ZoneId.of("Asia/Seoul")
 
 internal class CanvasSchoolSource(private val client: CanvasClient) : SchoolAssignmentSource {
+    suspend fun fetchNotices(localId: String, externalId: String): ApiResult<List<Resource>> {
+        if (!canvasId.matches(externalId)) return ApiResult.Failure(ApiErrorCode.INVALID_ARGUMENT, false)
+        val rows = when (val response = client.getList("/api/v1/courses/$externalId/discussion_topics?only_announcements=true&per_page=100")) {
+            is ApiResult.Success -> response.data
+            is ApiResult.Failure -> return response
+        }
+        val notices = rows.map { row ->
+            val id = row.id("id") ?: return invalidResponse()
+            val title = row.text("title") ?: return invalidResponse()
+            Resource("notice:$localId:$id", localId, ResourceKind.NOTICE, title, row.text("message"),
+                SourceRef(Provider.SCHOOL, id, "$CANVAS_WEB/courses/$externalId/discussion_topics/$id", row.text("updated_at")?.toInstant()), null)
+        }
+        if (notices.distinctBy { it.id }.size != notices.size) return invalidResponse()
+        return ApiResult.Success(notices)
+    }
+
     suspend fun fetchCourses(): ApiResult<List<SchoolCourseRecord>> {
         val rows = when (val response = client.getList(ACTIVE_COURSES)) {
             is ApiResult.Success -> response.data
