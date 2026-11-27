@@ -103,6 +103,11 @@ interface SyncService {
 
 interface AnalysisService {
     suspend fun getAIConfig(): ApiResult<AIConfigPublic>
+
+    suspend fun setAIMode(mode: AIMode): ApiResult<Unit> =
+        ApiResult.Failure(ApiErrorCode.UNSUPPORTED, retryable = false)
+
+    /** Configures and selects PERSONAL_SERVER. A blank key omits authentication. */
     suspend fun setAIConfig(baseUrl: String, apiKey: String, modelId: String? = null): ApiResult<Unit>
     suspend fun testAIConnection(): ApiResult<ConnectionTestResult>
     suspend fun analyzeResource(resourceId: String): ApiResult<String>

@@ -2,6 +2,7 @@
 
 - 기준: 2026-11-19 KST
 - 상태: **API 계약 v0.5 (11/18 MAD 회의 결과 반영)**. v0.4의 확정 정책과 공개 함수는 유지하면서, 시간표 직접 등록·Notes 폴더명 관리·과제 상세 필드를 보완함. 구현상의 기술 검증 및 계약 정합성 테스트는 별도 수행.
+- AI 연결 방식과 준비 상태는 [§2.7](#27-ai수동검토)에 추가로 정의한다.
 - 계약 형태: **Android 앱 내부 Kotlin Repository/Service 인터페이스**. HTTP REST endpoint가 아님. 향후 별도 서버를 추가하더라도 앱 측 계약은 유지.
 
 ## 1. 공통 계약
@@ -38,7 +39,7 @@
 | `IntegrationStatus` | `provider: Provider`, `connected: Boolean`, `authState: AuthState`, `sync: SyncStatus?` | SCHOOL / GOOGLE_CALENDAR / AI. |
 | `JobState` | `jobId: String`, `kind: JobKind`, `state: JobStatus`, `progress: Float?`, `processed: Int?`, `total: Int?`, `errorCode: ApiErrorCode?` | 진행률을 알 수 없으면 null. `QUEUED/RUNNING/SUCCEEDED/PARTIAL/FAILED/CANCELLED`. |
 | `AnalysisResult` | `resourceId: String`, `state: AnalysisState`, `candidates: List<ExtractedItem>`, `evidence: List<Evidence>`, `analyzedAt: Instant?` | 정보가 모호하면 `MANUAL_REVIEW`; 근거 없는 확정 금지. |
-| `ReviewItem` | `id: String`, `resourceId: String`, `reason: ReviewReason`, `candidates: List<ExtractedItem>`, `status: ReviewStatus` | `UNAVAILABLE/INCOMPLETE/CONFLICT/ANALYSIS_FAILED`. 승인/수정/무시 가능. |
+| `ReviewItem` | `id: String`, `resourceId: String`, `reason: ReviewReason`, `candidates: List<ExtractedItem>`, `status: ReviewStatus` | `UNAVAILABLE/INCOMPLETE/CONFLICT/ANALYSIS_FAILED/NEEDS_CONFIRMATION`. 승인/수정/무시 가능. |
 | `PendingChange` | `id: String`, `itemId: String`, `field: String`, `oldValue: String?`, `newValue: String?`, `source: SourceRef?` | 원본 일정의 **날짜** 변경은 적용 전 사용자 승인 필요. |
 | `WorkSummary` | `total: Int`, `completed: Int`, `remaining: Int`, `upcoming: Int` | 추론 기반 ‘소요시간 예측’은 없음. |
 
@@ -63,7 +64,7 @@
 | `NotificationSettingsPatch` | `NotificationSettings` 각 필드를 `PatchField<T>`로 표현 | 마감 알림은 시각이 확인된 미완료 과제만 대상. |
 | `ExtractedItem` | `kind: ExtractedKind`, `title: String?`, `description: String?`, `submissionFormat: String?`, `submissionMethod: String?`, `gradingCriteria: String?`, `availableAt: KstMoment?`, `dueAt: KstMoment?`, `evidence: List<Evidence>` | Figma 과제 상세의 세 분리 항목을 분석 결과에도 보존. 근거로 확정할 수 없으면 null. 불완전한 결과는 수동검토. |
 | `ManualReviewDecision` | `action: APPROVE / EDIT / IGNORE`, `patch: ExtractedItemPatch?` | `EDIT`일 때만 `patch` 필수. |
-| `AIConfigPublic` | `baseUrl: String?`, `modelId: String?`, `configured: Boolean`, `connected: Boolean` | API Key 등 비밀정보 없음. |
+| `AIConfigPublic` | `baseUrl: String?`, `modelId: String?`, `configured: Boolean`, `connected: Boolean`, `mode: AIMode = DISABLED`, `readiness: AIReadiness = DISABLED` | 선택한 AI 모드의 설정과 준비 상태. API Key 등 비밀정보 없음. |
 | `ConnectionTestResult` | `connected: Boolean`, `capabilities: Set<String>`, `errorCode: ApiErrorCode?` | 실제 테스트 결과 기반 기능 목록. |
 | `GoogleCalendarInfo` | `id: String`, `name: String`, `primary: Boolean`, `writable: Boolean` | 내보내기는 writable 대상만. |
 | `ExportReceipt` | `localItemId: String`, `googleEventId: String?`, `state: ExportState`, `errorCode: ApiErrorCode?` | `SENT / QUEUED / FAILED / NOT_APPLICABLE`. |
@@ -178,16 +179,42 @@
 
 | Function | args | return | 역할 |
 |---|---|---|---|
-| `getAIConfig` | 없음 | `ApiResult<AIConfigPublic>` | endpoint/model/연결 상태 조회. API Key 미반환 |
-| `setAIConfig` | `baseUrl: String, apiKey: String, modelId: String? = null` | `ApiResult<Unit>` | 온디바이스(127.0.0.1) 또는 외부 HTTP API 설정 |
+| `getAIConfig` | 없음 | `ApiResult<AIConfigPublic>` | 선택 모드, 준비 상태, endpoint/model 조회. API Key 미반환 |
+| `setAIMode` | `mode: AIMode` | `ApiResult<Unit>` | AI 연결 방식 선택. 미구현 구현체의 기본 응답은 `UNSUPPORTED` |
+| `setAIConfig` | `baseUrl: String, apiKey: String, modelId: String? = null` | `ApiResult<Unit>` | OpenAI 호환 endpoint를 저장하고 `PERSONAL_SERVER` 선택 |
 | `testAIConnection` | 없음 | `ApiResult<ConnectionTestResult>` | 모델 API 접근 테스트 |
 | `analyzeResource` | `resourceId: String` | `ApiResult<String>` (`jobId`) | 단일 자료 분석(일괄 분석 API 없음) |
 | `observeAnalysisJob` | `jobId: String` | `Flow<JobState>` | 분석 진행 상태 |
 | `getAnalysisResult` | `jobId: String` | `ApiResult<AnalysisResult>` | 추출 결과·근거 URL·인용 구간 |
 | `observeManualReviews` | `status: ReviewStatus? = OPEN` | `Flow<List<ReviewItem>>` | 수동검토 목록 |
-| `resolveManualReview` | `reviewId: String, decision: ManualReviewDecision` | `ApiResult<Unit>` | 승인·수정·무시 |
+| `resolveManualReview` | `reviewId: String, decision: ManualReviewDecision` | `ApiResult<Unit>` | 승인·수정·무시 결정 저장 |
 
-AI 분석은 개별 자료 단위. 자동 분석은 사용자가 켜면 신규 자료에 적용을 시도하며, 백그라운드에서 불가할 경우 신규 자료 알림 후 앱 실행 시 수행. 자동 반영은 **별도 opt-in**. 충돌하는 후보는 확인 가능한 최신 원본 우선, 최신을 판별할 근거가 없거나 데이터가 불완전하면 `MANUAL_REVIEW`. 사용자 수동 수정은 자동 분석 결과보다 우선.
+#### 연결 방식과 화면 연결
+
+| `AIMode` | 용도 | 첫 구현 범위 |
+|---|---|---|
+| `ON_DEVICE` | Android 기기에서 모델을 직접 실행 | 모듈 `:on-device-litert`와 기기에 설치한 CPU용 `.litertlm` 모델로 실행. 분석 서비스에 런타임이 없으면 `UNAVAILABLE` |
+| `PERSONAL_SERVER` | 사용자가 설정한 OpenAI 호환 서버 | 주소, 선택 API Key와 모델 설정, 연결 테스트, 자료 분석 |
+| `CHATGPT_SUBSCRIPTION` | 공식 지원 시 ChatGPT 구독 연결 | 구독 추론 권한과 공식 OAuth 콜백·계정 동작 검증 전까지 `UNAVAILABLE` |
+| `DISABLED` | AI 사용 안 함 | 기본 모드. AI 호출 없이 기존 앱 기능 사용 |
+
+자료 요약 화면에서 사용자가 Gemma 4 E2B 또는 E4B를 선택하면 `GemmaModelStore.select(model)`이 모델을 다운로드하고 검증한 뒤 선택을 저장한다. `OnDeviceSummarizer(context).summarize(text)`는 선택된 모델로 한국어 요약을 반환한다. 이 경로는 사용자 요청 시 실행하며 일정·과제 후보를 만드는 `AnalysisService`와 별도로 사용할 수 있다. 상태·다운로드 용량·실패 처리와 호출 예제는 [기기 내 AI 모듈](on-device-litert/README.md)에 있다.
+
+ChatGPT 구독의 계정 연결, 이용 권한·모델 조회와 연결 해제 API는 공식 OAuth 연동을 검증할 때 추가한다.
+
+`AIReadiness`는 `DISABLED`(꺼짐), `UNAVAILABLE`(현재 빌드에서 미지원), `NEEDS_SETUP`(설정 없음), `CONFIGURED`(설정 완료, 연결 확인 필요), `CONNECTED`(현재 설정으로 연결 테스트 성공)를 구분한다. `setAIMode()`는 미지원 모드도 선택할 수 있게 하며, 해당 모드는 요청을 시작하지 않는다. 설정 화면은 `getAIConfig()` 결과로 선택 모드와 상태를 표시하고, 저장 또는 연결 테스트 후 상태를 다시 읽는다. 자료 분석 버튼은 지원되고 설정이 완료된 모드에서 제공한다. 데모는 연결 상태와 분석 결과를 각각 모의로 제공한다.
+
+모드를 변경하면 진행 중인 분석 작업을 `CANCELLED`로 전환하고 뒤늦게 받은 결과를 폐기한다. 서버 설정과 이미 저장된 결과·검토 내역은 유지한다. 분석을 시작할 수 없는 모드는 `UNSUPPORTED`, 필요한 개인 서버 설정이 비어 있으면 `INVALID_ARGUMENT`, 분석 중 추가 실행은 재시도 가능한 `CONFLICT`, 분석할 본문이 없으면 `SOURCE_UNAVAILABLE`로 응답한다.
+
+개인 서버에는 주소와 선택 모델을 표시하고 API Key는 마스킹해 입력받는다. 키는 앱 전용 저장소에 암호화하며 HTTPS 연결에서만 사용한다. `apiKey`를 빈 문자열로 저장하면 인증 헤더를 생략한다. 평문 HTTP는 키가 없는 루프백 또는 사설 IP 주소에 한하며 Android 네트워크 정책이 허용해야 한다. 서버 경로는 `/v1/models`와 `/v1/chat/completions`를 제공해야 한다. 주소에 프록시 접두 경로나 `/v1`을 포함할 수 있다. 모델을 지정하지 않으면 서버가 제공한 모델 목록의 첫 모델을 사용한다. 연결 테스트는 모델 목록과 선택 모델을 확인한다.
+
+#### 자료 분석과 수동 검토
+
+자료 상세는 `analyzeResource(resourceId)`의 작업 ID로 `observeAnalysisJob()`을 구독한다. `JobState`는 작업 진행 상태이고, 작업 성공 후 `getAnalysisResult()`의 `AnalysisState`로 결과 또는 수동 검토를 표시한다. 후보 근거는 `Evidence`의 출처 URL, 인용, 페이지·위치에서 확인 가능한 값을 사용한다.
+
+첫 구현은 자료의 제목과 본문을 사용한다. 분석 응답마다 후보를 최대 한 개 만들고 `MANUAL_REVIEW`를 반환한다. 후보의 제목과 본문에서 확인한 인용이 있으면 `NEEDS_CONFIRMATION`, 후보나 근거가 부족하면 `INCOMPLETE`를 기록한다. 출처 자료 URL은 검토 화면을 위해 로컬에서 붙인다. 승인·수정·무시는 검토 상태를 저장하며 일정·과제 반영은 후속 작업이다. 승인·수정에는 한 개의 후보가 필요하고 수정에는 `ExtractedItemPatch`도 필요하다. 후보가 여러 개인 경우의 수정 대상 식별 방식은 별도 계약으로 합의해야 한다.
+
+자동 분석과 자동 반영은 별개의 설정이며 기본값은 둘 다 꺼짐이다. 자동 실행을 연결할 때 자동 분석은 새 자료에 적용하고, 백그라운드에서 완료할 수 없으면 알림 후 앱 실행 시 처리한다. 최신 원본을 확인할 수 있는 후보를 우선하고, 근거가 부족하거나 데이터가 충돌하면 수동 검토로 보낸다. 사용자의 수동 수정은 자동 분석 결과보다 우선한다.
 
 ### 2.8 Google Calendar
 
