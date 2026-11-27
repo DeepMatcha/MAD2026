@@ -120,6 +120,10 @@ private fun TaskCardRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(
+                enabled = task.canOpen,
+                onClick = onTaskClick
+            )
             .padding(
                 horizontal = 14.dp,
                 vertical = 8.dp
@@ -184,11 +188,7 @@ private fun TaskCardRow(
         }
 
         Column(
-            modifier = Modifier
-                .weight(1f)
-                .clickable(enabled = task.canOpen) {
-                    onTaskClick()
-                },
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(
