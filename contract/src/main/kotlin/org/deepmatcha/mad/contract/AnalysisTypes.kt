@@ -2,9 +2,13 @@ package org.deepmatcha.mad.contract
 
 import java.time.Instant
 
+enum class AIMode { ON_DEVICE, PERSONAL_SERVER, CHATGPT_SUBSCRIPTION, DISABLED }
+
+enum class AIReadiness { DISABLED, UNAVAILABLE, NEEDS_SETUP, CONFIGURED, CONNECTED }
+
 enum class AnalysisState { SUCCEEDED, MANUAL_REVIEW, FAILED }
 enum class ExtractedKind { EVENT, TODO }
-enum class ReviewReason { UNAVAILABLE, INCOMPLETE, CONFLICT, ANALYSIS_FAILED }
+enum class ReviewReason { UNAVAILABLE, INCOMPLETE, CONFLICT, ANALYSIS_FAILED, NEEDS_CONFIRMATION }
 enum class ReviewStatus { OPEN, APPROVED, EDITED, IGNORED }
 enum class ReviewAction { APPROVE, EDIT, IGNORE }
 
@@ -13,6 +17,8 @@ data class AIConfigPublic(
     val modelId: String?,
     val configured: Boolean,
     val connected: Boolean,
+    val mode: AIMode = AIMode.DISABLED,
+    val readiness: AIReadiness = AIReadiness.DISABLED,
 )
 
 data class Evidence(

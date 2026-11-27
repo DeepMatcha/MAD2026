@@ -1,0 +1,95 @@
+package org.deepmatcha.mad.backend.school
+
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import org.deepmatcha.mad.contract.ApiErrorCode
+import org.deepmatcha.mad.contract.ApiResult
+import org.deepmatcha.mad.contract.Assignment
+import org.deepmatcha.mad.contract.Course
+import org.deepmatcha.mad.contract.Provider
+import org.deepmatcha.mad.contract.Resource
+import org.deepmatcha.mad.contract.ResourceKind
+import org.deepmatcha.mad.contract.SchoolRepository
+import org.deepmatcha.mad.contract.SourceRef
+
+internal class LocalSchoolRepository(private val store: SchoolStore) : SchoolRepository {
+    override fun observeCourses() = store.state
+        .map { state -> state.courses.values.map { state.effectiveCourse(it.course) } }
+        .distinctUntilChanged()
+
+    override suspend fun getCourse(courseId: String): ApiResult<Course> {
+        val state = store.state.value
+        return state.courses[courseId]?.course?.let { state.effectiveCourse(it) }.orNotFound()
+    }
+
+    override suspend fun setCourseSyncEnabled(courseId: String, enabled: Boolean): ApiResult<Unit> =
+        store.update { state ->
+            val course = state.courses[courseId] ?: return@update state to notFound()
+            val updated = course.copy(course = course.course.copy(syncEnabled = enabled))
+            state.copy(courses = state.courses + (courseId to updated)) to ApiResult.Success(Unit)
+        }
+
+    override fun observeAssignments(courseId: String?, includeCompleted: Boolean, includeHidden: Boolean) =
+        store.state.map { state ->
+            state.assignments.values.asSequence().map { it.assignment() }.filter {
+                (courseId == null || it.courseId == courseId) &&
+                    (includeCompleted || !it.completed) &&
+                    (includeHidden || !it.hidden)
+            }.toList()
+        }.distinctUntilChanged()
+
+    override suspend fun getAssignment(assignmentId: String) =
+        store.state.value.assignments[assignmentId]?.assignment().orNotFound()
+
+    override suspend fun setUserCompleted(assignmentId: String, completed: Boolean): ApiResult<Assignment> =
+        store.update { state ->
+            val assignment = state.assignments[assignmentId] ?: return@update state to notFound()
+            val updated = assignment.copy(overrides = assignment.overrides.copy(userCompleted = completed))
+            state.copy(assignments = state.assignments + (assignmentId to updated)) to
+                ApiResult.Success(updated.assignment())
+        }
+
+    override suspend fun setSchoolItemHidden(itemId: String, hidden: Boolean): ApiResult<Unit> =
+        store.update { state ->
+            if (itemId in state.planner.notices) {
+                val ids = state.planner.hiddenNotices
+                return@update state.copy(planner = state.planner.copy(hiddenNotices = if (hidden) ids + itemId else ids - itemId)) to ApiResult.Success(Unit)
+            }
+            val assignment = state.assignments[itemId] ?: return@update state to notFound()
+            val updated = assignment.copy(overrides = assignment.overrides.copy(hidden = hidden))
+            state.copy(assignments = state.assignments + (itemId to updated)) to ApiResult.Success(Unit)
+        }
+
+    override fun observeResources(courseId: String, kinds: Set<ResourceKind>?) =
+        store.state.map { state ->
+            val assignments = state.assignments.values.filter { it.courseId == courseId && !it.overrides.hidden }.map { it.resource() }
+            (assignments + state.planner.notices.values.filter { it.courseId == courseId && it.id !in state.planner.hiddenNotices })
+                .filter { kinds == null || it.kind in kinds }
+        }.distinctUntilChanged()
+
+    override suspend fun getResource(resourceId: String) =
+        store.state.value.let { (it.assignments[resourceId]?.resource() ?: it.planner.notices[resourceId]).orNotFound() }
+
+    override suspend fun getSource(itemId: String): ApiResult<SourceRef?> {
+        val state = store.state.value
+        return (state.assignments[itemId]?.assignment()?.source ?: state.courses[itemId]?.course?.source ?: state.planner.notices[itemId]?.source)
+            .orNotFound()
+    }
+
+    private fun StoredAssignment.resource() = Resource(
+        id = id,
+        courseId = courseId,
+        kind = ResourceKind.ASSIGNMENT,
+        title = remote.title,
+        contentText = remote.description,
+        source = SourceRef(Provider.SCHOOL, remote.externalId, remote.url, remote.remoteUpdatedAt),
+        fileInfo = null,
+    )
+
+    private fun SchoolState.effectiveCourse(course: Course) = course.copy(syncEnabled = isCourseSyncEnabled(course))
+}
+
+internal fun notFound() = ApiResult.Failure(ApiErrorCode.NOT_FOUND, retryable = false)
+
+internal fun <T : Any> T?.orNotFound(): ApiResult<T> =
+    if (this == null) notFound() else ApiResult.Success(this)

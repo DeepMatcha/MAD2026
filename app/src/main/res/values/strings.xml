@@ -1,4 +1,30 @@
 <resources>
     <string name="app_name">MAD2026</string>
     <string name="setup_preview">MAD2026 개발용 빌드</string>
+    <string name="summary_title">기기에서 자료 요약</string>
+    <string name="model_choice">사용할 모델</string>
+    <string name="model_option">%1$s · %2$s</string>
+    <string name="model_installed">%1$s · 설치됨</string>
+    <string name="download_model">선택한 모델 다운로드</string>
+    <string name="select_installed">설치된 모델 사용</string>
+    <string name="cancel_download">다운로드 취소</string>
+    <string name="no_model">모델을 선택해 다운로드하면 이 기기에서 자료를 요약할 수 있습니다.</string>
+    <string name="selected_model">사용 중 · %1$s</string>
+    <string name="download_status">%1$s 다운로드 · %2$s / %3$s</string>
+    <string name="download_verify">%1$s 파일 확인 중</string>
+    <string name="download_cancelled">다운로드를 취소했습니다.</string>
+    <string name="download_failed">모델을 저장하지 못했습니다. 네트워크와 저장 공간을 확인한 뒤 다시 시도해 주세요.</string>
+    <string name="storage_error">저장 공간이 부족합니다. 필요 공간 %1$s, 사용 가능 공간 %2$s.</string>
+    <string name="integrity_error">모델 파일 검증에 실패했습니다. 다시 다운로드해 주세요.</string>
+    <string name="source_label">요약할 자료</string>
+    <string name="source_hint">강의자료나 공지 본문을 입력하세요.</string>
+    <string name="pick_source">저장된 수업 자료 선택</string>
+    <string name="no_resources">본문이 있는 수업 자료가 없습니다. 자료를 직접 입력할 수 있습니다.</string>
+    <string name="resources_failed">수업 자료를 불러오지 못했습니다.</string>
+    <string name="summarize">자료 요약하기</string>
+    <string name="generating">기기에서 요약 중…</string>
+    <string name="input_error">입력할 수 있는 분량을 확인하고 자료를 더 짧게 나누어 주세요.</string>
+    <string name="model_missing">설치된 모델을 확인하고 다시 선택해 주세요.</string>
+    <string name="model_unsupported">이 기기에서 모델을 실행할 수 없습니다.</string>
+    <string name="inference_failed">요약을 완료하지 못했습니다. 더 짧은 자료 또는 다른 모델로 다시 시도해 주세요.</string>
 </resources>

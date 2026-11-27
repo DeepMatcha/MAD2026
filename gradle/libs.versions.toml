@@ -6,9 +6,13 @@ activity = "1.6.0"
 activityCompose = "1.10.1"
 composeBom = "2025.08.00"
 coroutines = "1.10.2"
+gson = "2.11.0"
 junit = "4.13.2"
+google-auth = "21.4.0"
+litert-lm = "0.16.1" # ABI and Kotlin 2.2 compatible runtime for the optional device adapter.
 
 [libraries]
+google-auth = { module = "com.google.android.gms:play-services-auth", version.ref = "google-auth" }
 androidx-activity = { module = "androidx.activity:activity", version.ref = "activity" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 
@@ -19,8 +23,11 @@ androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
 androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 junit = { module = "junit:junit", version.ref = "junit" }
+litert-lm-android = { module = "com.google.ai.edge.litertlm:litertlm-android", version.ref = "litert-lm" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

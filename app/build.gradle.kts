@@ -28,6 +28,9 @@ android {
 
 dependencies {
     // Existing team modules
+    implementation(project(":on-device-litert"))
+    implementation(libs.androidx.activity)
+    implementation(libs.kotlinx.coroutines.android)
     implementation(project(":contract"))
     implementation(project(":demo-data"))
     implementation("androidx.compose.material:material-icons-extended")

@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MAD2026"
-include(":app", ":contract", ":demo-data", ":backend")
+include(":app", ":contract", ":demo-data", ":backend", ":on-device-litert")

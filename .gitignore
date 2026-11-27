@@ -75,3 +75,7 @@ student-records/
 # Python scanner cache
 __pycache__/
 *.py[cod]
+
+# Downloaded inference weights
+*.litertlm
+*.gguf
