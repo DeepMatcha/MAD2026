@@ -1,16 +1,20 @@
 package org.deepmatcha.mad
 
-import android.app.Activity
 import android.os.Bundle
-import android.view.Gravity
-import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import org.deepmatcha.mad.ui.MoaMainScreen
+import org.deepmatcha.mad.ui.theme.MoaTheme
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(TextView(this).apply {
-            gravity = Gravity.CENTER
-            setText(R.string.setup_preview)
-        })
+
+        setContent {
+            MoaTheme {
+                MoaMainScreen()
+            }
+        }
     }
 }
