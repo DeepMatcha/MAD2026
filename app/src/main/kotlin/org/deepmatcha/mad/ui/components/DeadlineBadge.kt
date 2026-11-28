@@ -33,14 +33,14 @@ fun DeadlineBadge(
             .background(MoaRed.copy(alpha = 0.15f))
             .padding(
                 horizontal = 9.dp,
-                vertical = 6.dp
+                vertical = 3.dp
             )
     ) {
         Text(
             text = label,
             color = MoaRed,
             fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.Bold
         )
     }
 }

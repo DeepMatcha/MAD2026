@@ -1,17 +1,23 @@
-//메인 화면 관리자입니당
+
 package org.deepmatcha.mad.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import org.deepmatcha.mad.contract.NoteItem
 import org.deepmatcha.mad.ui.components.BottomBar
 import org.deepmatcha.mad.ui.components.MoaTab
 import org.deepmatcha.mad.ui.home.HomeScreen
+import org.deepmatcha.mad.ui.notes.FolderNotesScreen
+import org.deepmatcha.mad.ui.notes.NotesScreen
+import org.deepmatcha.mad.ui.notes.NotesTab
 import org.deepmatcha.mad.ui.tasks.TaskDetailScreen
 
 @Composable
@@ -20,15 +26,39 @@ fun MoaMainScreen() {
         mutableStateOf(MoaTab.HOME)
     }
 
+    var selectedNotesTab by rememberSaveable {
+        mutableStateOf(NotesTab.COURSES)
+    }
+
+    var selectedFolderId by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
+
     var selectedAssignmentId by rememberSaveable {
         mutableStateOf<String?>(null)
     }
 
-    // 안드로이드 시스템 뒤로 가기 처리
+    var previewNote by remember {
+        mutableStateOf<NoteItem?>(null)
+    }
+
+    var showAddNotice by remember {
+        mutableStateOf(false)
+    }
+
     BackHandler(
-        enabled = selectedAssignmentId != null
+        enabled = selectedAssignmentId != null ||
+                selectedFolderId != null
     ) {
-        selectedAssignmentId = null
+        when {
+            selectedAssignmentId != null -> {
+                selectedAssignmentId = null
+            }
+
+            selectedFolderId != null -> {
+                selectedFolderId = null
+            }
+        }
     }
 
     Box(
@@ -41,29 +71,67 @@ fun MoaMainScreen() {
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // 메인 탭 화면
             when (selectedTab) {
-                MoaTab.HOME -> HomeScreen(
-                    onTaskClick = { assignmentId ->
-                        selectedAssignmentId = assignmentId
+                MoaTab.HOME -> {
+                    HomeScreen(
+                        onTaskClick = { assignmentId ->
+                            selectedAssignmentId = assignmentId
+                        }
+                    )
+                }
+
+                MoaTab.WEEKLY -> {
+                    ScreenPlaceholder(
+                        title = "Weekly",
+                        description = "시간표 화면 구현 예정"
+                    )
+                }
+
+                MoaTab.NOTES -> {
+                    val folderId = selectedFolderId
+
+                    if (folderId == null) {
+                        NotesScreen(
+                            selectedTab = selectedNotesTab,
+                            onTabChange = {
+                                selectedNotesTab = it
+                            },
+                            onFolderClick = {
+                                selectedNotesTab = NotesTab.COURSES
+                                selectedFolderId = it
+                            },
+                            onAssignmentClick = {
+                                selectedAssignmentId = it
+                            },
+                            onNoteClick = {
+                                previewNote = it
+                            },
+                            onAddClick = {
+                                showAddNotice = true
+                            }
+                        )
+                    } else {
+                        FolderNotesScreen(
+                            folderId = folderId,
+                            onBackClick = {
+                                selectedFolderId = null
+                            },
+                            onAddClick = {
+                                showAddNotice = true
+                            },
+                            onAssignmentClick = {
+                                selectedAssignmentId = it
+                            },
+                            onNoteClick = {
+                                previewNote = it
+                            }
+                        )
                     }
-                )
-
-                MoaTab.WEEKLY -> ScreenPlaceholder(
-                    "Weekly",
-                    "시간표 화면을 여기에 구현할 예정"
-                )
-
-                MoaTab.NOTES -> ScreenPlaceholder(
-                    "Notes",
-                    "노트 화면을 여기에 구현할 예정"
-                )
+                }
             }
 
-            // 과제 상세 화면은 메인 화면 위에 표시
-            val assignmentId = selectedAssignmentId
-
-            if (assignmentId != null) {
+            // 과제 상세 화면을 현재 화면 위에 표시
+            selectedAssignmentId?.let { assignmentId ->
                 TaskDetailScreen(
                     assignmentId = assignmentId,
                     onBackClick = {
@@ -73,18 +141,76 @@ fun MoaMainScreen() {
             }
         }
 
-        // 상세 화면에서는 BottomBar 숨김
+        // 과제 상세 화면에서는 하단 바 숨김
         if (selectedAssignmentId == null) {
             BottomBar(
                 selectedTab = selectedTab,
-                onTabSelected = {
-                    selectedTab = it
+                onTabSelected = { tab ->
+                    selectedTab = tab
+
+                    if (tab != MoaTab.NOTES) {
+                        selectedFolderId = null
+                    }
                 },
                 modifier = Modifier.align(
                     Alignment.BottomCenter
                 )
             )
         }
+    }
+
+    // 일반 메모 / 공지는 우선 읽기 전용으로 표시
+    val note = previewNote
+
+    if (note != null) {
+        AlertDialog(
+            onDismissRequest = {
+                previewNote = null
+            },
+            title = {
+                Text(note.title)
+            },
+            text = {
+                Text(
+                    note.body
+                        ?.takeIf { it.isNotBlank() }
+                        ?: "작성된 내용이 없어요."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        previewNote = null
+                    }
+                ) {
+                    Text("닫기")
+                }
+            }
+        )
+    }
+
+    // 노트 추가 화면은 다음 단계에서 연결
+    if (showAddNotice) {
+        AlertDialog(
+            onDismissRequest = {
+                showAddNotice = false
+            },
+            title = {
+                Text("노트 추가")
+            },
+            text = {
+                Text("노트 추가 화면은 다음 단계에서 구현할 예정이에요.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showAddNotice = false
+                    }
+                ) {
+                    Text("확인")
+                }
+            }
+        )
     }
 }
 
