@@ -1,4 +1,4 @@
-// 메인 버튼 컴포넌트
+
 package org.deepmatcha.mad.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
@@ -20,12 +20,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.tooling.preview.Preview
-import org.deepmatcha.mad.ui.theme.MoaBlue
-import org.deepmatcha.mad.ui.theme.MoaTheme
+
+private val ButtonBlue = Color(0xFF4F73B5)
 
 @Composable
 fun Button(
@@ -35,7 +35,7 @@ fun Button(
     enabled: Boolean = true,
     isLoading: Boolean = false
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(100.dp)
     val canClick = enabled && !isLoading
 
     val interactionSource = remember {
@@ -47,64 +47,57 @@ fun Button(
     val scale by animateFloatAsState(
         targetValue = if (isPressed && canClick) 0.97f else 1f,
         animationSpec = spring(),
-        label = "ButtonPressAnimation"
+        label = "ButtonPress"
     )
-
-    val glassGradient = if (canClick) {
-        Brush.verticalGradient(
-            colors = listOf(
-                MoaBlue.copy(alpha = 0.78f),
-                Color(0xFF8FACD7).copy(alpha = 0.65f)
-            )
-        )
-    } else if (isLoading) {
-        Brush.verticalGradient(
-            colors = listOf(
-                MoaBlue.copy(alpha = 0.78f),
-                Color(0xFF8FACD7).copy(alpha = 0.65f)
-            )
-        )
-    } else {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFFB8C8DE).copy(alpha = 0.55f),
-                Color(0xFFD2DDED).copy(alpha = 0.40f)
-            )
-        )
-    }
 
     Box(
         modifier = modifier
-            .height(54.dp)
+            .height(58.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
             .shadow(
-                elevation = 8.dp,
+                elevation = 14.dp,
                 shape = shape,
-                ambientColor = MoaBlue.copy(alpha = 0.12f),
-                spotColor = MoaBlue.copy(alpha = 0.15f)
+                ambientColor = ButtonBlue.copy(alpha = 0.18f),
+                spotColor = ButtonBlue.copy(alpha = 0.24f)
             )
             .clip(shape)
-            .background(glassGradient)
+
+            // Figma 메인 파란색
+            .background(ButtonBlue)
+
+            // 유리 표면의 은은한 광택
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.08f),
+                        Color.Transparent,
+                        Color.Black.copy(alpha = 0.04f)
+                    )
+                )
+            )
+
+            // Glass 테두리
             .border(
                 width = 1.dp,
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color.White.copy(alpha = 0.85f),
-                        Color.White.copy(alpha = 0.25f)
+                        Color.White.copy(alpha = 0.65f),
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.35f)
                     )
                 ),
                 shape = shape
             )
             .clickable(
                 enabled = canClick,
-                interactionSource = interactionSource
-            ) {
-                onClick()
-            }
-            .padding(horizontal = 20.dp),
+                interactionSource = interactionSource,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         if (isLoading) {
@@ -116,46 +109,9 @@ fun Button(
         } else {
             Text(
                 text = text,
-                color = if (enabled) {
-                    Color.White
-                } else {
-                    Color(0xFF8091A8)
-                },
+                color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun ButtonPreview() {
-    MoaTheme {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFFF0F3F9))
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Button(
-                text = "Continue",
-                onClick = {},
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Button(
-                text = "Save Note",
-                onClick = {},
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Button(
-                text = "Continue",
-                onClick = {},
-                enabled = false,
-                modifier = Modifier.fillMaxWidth()
             )
         }
     }

@@ -2,7 +2,7 @@ package org.deepmatcha.mad.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val MoaBlue = Color(0xFF5078BA)
+val MoaBlue = Color(0xFF4F73B5)
 val MoaLightBlue = Color(0xFFB5C7E4)
 
 val MoaBackground = Color(0xFFF8F9FB)

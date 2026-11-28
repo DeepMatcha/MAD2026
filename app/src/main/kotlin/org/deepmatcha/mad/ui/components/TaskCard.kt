@@ -48,7 +48,9 @@ fun TaskCard(
     modifier: Modifier = Modifier,
     highlighted: Boolean = false,
     onTaskClick: (String) -> Unit = {},
-    onToggleCompleted: (String, Boolean) -> Unit = { _, _ -> }
+    onToggleCompleted: (String, Boolean) -> Unit = { _, _ -> },
+    headerTitle: String? = null,
+    showCount: Boolean = true
 ) {
     val shape = RoundedCornerShape(25.dp)
 
@@ -63,37 +65,58 @@ fun TaskCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
-                    if (highlighted) {
-                        Color(0xFFE8F0FF)
-                    } else {
-                        Color(0xFFF9FAFD)
-                    }
+                    if (highlighted) Color(0xFFE8F0FF)
+                    else Color(0xFFF9FAFD)
                 )
-                .padding(
-                    horizontal = 20.dp,
-                    vertical = 14.dp
-                ),
+                .padding(horizontal = 20.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = date?.format(
-                    DateTimeFormatter.ofPattern(
-                        "EEE, MMM d",
-                        Locale.ENGLISH
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                if (headerTitle != null) {
+                    Text(
+                        text = headerTitle,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF171923),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                ) ?: "No Dates",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF171923)
-            )
+                }
 
-            Text(
-                text = "${tasks.size} tasks",
-                fontSize = 11.sp,
-                color = Color(0xFF9297A2)
-            )
+                Text(
+                    text = date?.format(
+                        DateTimeFormatter.ofPattern(
+                            "EEE, MMM d",
+                            Locale.ENGLISH
+                        )
+                    ) ?: "No Dates",
+                    fontSize = 14.sp,
+                    fontWeight = if (headerTitle != null) {
+                        FontWeight.Medium
+                    } else {
+                        FontWeight.Bold
+                    },
+                    color = if (headerTitle != null) {
+                        Color(0xFF9297A2)
+                    } else {
+                        Color(0xFF171923)
+                    }
+                )
+            }
+
+            if (showCount) {
+                Text(
+                    text = "${tasks.size} tasks",
+                    fontSize = 11.sp,
+                    color = Color(0xFF9297A2)
+                )
+            }
         }
+
 
         tasks.forEach { task ->
             TaskCardRow(
@@ -120,6 +143,10 @@ private fun TaskCardRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(
+                enabled = task.canOpen,
+                onClick = onTaskClick
+            )
             .padding(
                 horizontal = 14.dp,
                 vertical = 8.dp
@@ -184,11 +211,7 @@ private fun TaskCardRow(
         }
 
         Column(
-            modifier = Modifier
-                .weight(1f)
-                .clickable(enabled = task.canOpen) {
-                    onTaskClick()
-                },
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(
